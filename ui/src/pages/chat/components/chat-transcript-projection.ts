@@ -55,7 +55,6 @@ import { projectTranscriptWorkPreviews } from "./chat-transcript-work-previews.t
 import { projectTurnVideoMessages } from "./chat-turn-video-gallery.ts";
 import { resolveAssistantDisplayAvatar } from "./chat-welcome.ts";
 
-type ChatRenderItem = SystemEventRenderItem;
 const questionIndexes = createTranscriptMemo<NonNullable<StreamGroupOptions["questionPrompts"]>>();
 const emptyQuestions: NonNullable<StreamGroupOptions["questionPrompts"]> = new Map();
 
@@ -259,13 +258,12 @@ export function projectChatTranscript(
   const recapAttached = turnRecap !== null && tailStatusOwner?.runId === turnRecap.runId;
   const recapForGroup = (key: string) =>
     recapAttached && key === tailStatusOwner?.key ? (turnRecap ?? undefined) : undefined;
-  const resolveReplyPreview = createReplyPreviewResolver(loadedReplySources, props);
   const sharedMessageRenderOptions = {
     presented,
     onReply: props.onSetReply
       ? (target) => state.transcriptRenderContext.onSetReply?.(target)
       : undefined,
-    resolveReplyPreview,
+    resolveReplyPreview: createReplyPreviewResolver(loadedReplySources, props),
     onOpenReply: (replyToId: string) => state.transcriptRenderContext.onOpenReply?.(replyToId),
     replyNavigationId: props.replyMessageAccess?.navigationId,
     onOpenSidebar: props.onOpenSidebar,
@@ -295,12 +293,9 @@ export function projectChatTranscript(
     showAssistantAvatar: avatarPlacement === "gutter",
     bubbleMode: props.chatBubbleMode === true && !searchFiltering,
   } satisfies StreamGroupOptions;
-  // Only one bubble owns live animation; actionable waits and child work take precedence.
+  // Actionable waits take precedence over the active tool bubble.
   const bubbleActivityGroupKey =
-    props.showToolCalls &&
-    !props.waitingApproval &&
-    props.retryAt === undefined &&
-    !subagents.activity.length
+    props.showToolCalls && !props.waitingApproval && props.retryAt === undefined && !subagents.wait
       ? runningActivityGroupKey
       : undefined;
   const streamGroupOptions = {
@@ -311,17 +306,13 @@ export function projectChatTranscript(
     startupLabel: props.startupLabel,
     retryAt: props.retryAt,
     waitingApproval: props.waitingApproval,
-    waitingSubagents: subagents.wait ?? undefined,
-    runningSubagents: subagents.running,
-    subagentActivity: subagents.activity.length
+    waitingSubagents: subagents.wait
       ? {
-          rows: subagents.activity,
-          presented,
-          turnStartedAt: subagents.wait ? workingIndicator?.request?.askedAt : undefined,
-          onOpenSubagent: props.onOpenSubagent,
-          onOpenSession: props.onOpenSession,
+          ...subagents.wait,
+          startedAt: workingIndicator?.request?.askedAt ?? subagents.wait.startedAt,
         }
       : undefined,
+    runningSubagents: subagents.running,
     onOpenSubagents: subagents.listed ? props.onOpenSubagents : undefined,
     runOutputTokens,
     questionPrompts,
@@ -400,7 +391,7 @@ export function projectChatTranscript(
     presented,
     bubbleActivityGroupKey,
   ]);
-  const liveStatusSignature = (item: ChatRenderItem): string => {
+  const liveStatusSignature = (item: SystemEventRenderItem): string => {
     if (item.kind === "stream-run") {
       return item.parts.some((part) => part.kind === "reading-indicator") ? workingUsageKey : "";
     }
@@ -633,6 +624,7 @@ export function projectChatTranscript(
     props.queuedMessageAction?.id,
     props.queuedMessageAction?.label,
     props.queuedMessageAction?.onAction,
+    props.queuedMessageAction?.onDiscard,
     props.replyMessageAccess?.revision ?? 0,
     props.replyMessageAccess?.navigationId ?? "",
     turnRecap === null ? "" : `${turnRecap.runtimeMs}:${turnRecap.outputTokens ?? ""}`,
