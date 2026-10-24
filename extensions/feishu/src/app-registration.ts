@@ -149,9 +149,12 @@ export async function pollAppRegistration(params: {
 
   const expireInMs =
     finiteSecondsToTimerSafeMilliseconds(expireIn) ?? DEFAULT_REGISTRATION_EXPIRE_SECONDS * 1_000;
-  const deadline = Date.now() + expireInMs;
+  // The poll budget is consumed by sleepWithAbort on the monotonic clock; the
+  // deadline must live there too, or a wall-clock step (NTP correction, VM
+  // resume) keeps polling past the server-provided device-code expiry.
+  const deadline = performance.now() + expireInMs;
 
-  while (Date.now() < deadline) {
+  while (performance.now() < deadline) {
     if (abortSignal?.aborted) {
       return { status: "timeout" };
     }
