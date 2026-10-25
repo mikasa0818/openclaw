@@ -537,6 +537,7 @@ export const databaseWorkerExtensionTestFiles = [
   "extensions/imessage/src/send.test.ts",
   "extensions/x/src/guest-usage.test.ts",
   "extensions/x/src/client.test.ts",
+  "extensions/x/src/media-api.monotonic.test.ts",
 ];
 
 export function isDatabaseWorkerExtensionRoot(root) {
