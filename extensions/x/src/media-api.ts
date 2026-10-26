@@ -87,9 +87,6 @@ export async function uploadXMedia(
     await readUploadResponse(await send(path + "/append", "POST", body), true);
   }
   let data = await readUploadResponse(await send(path + "/finalize", "POST"));
-  // The processing budget is consumed by sleepWithAbort polls on the monotonic
-  // clock; the deadline must live there too, or a wall-clock step (NTP
-  // correction, VM resume) keeps polling the X API past the configured bound.
   const deadline = performance.now() + PROCESSING_TIMEOUT_MS;
   let polling = false;
   for (;;) {
