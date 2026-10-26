@@ -165,10 +165,6 @@ function createStartupEntryRemovalError(error: unknown): Error {
 export async function waitForScheduledTaskRunningEvidence(
   env: GatewayServiceEnv,
 ): Promise<boolean> {
-  // The fallback budget is consumed by real schtasks probes and sleep polls on
-  // the monotonic clock; the deadline must live there too, or a wall-clock step
-  // (NTP correction, VM resume) keeps the takeover decision pending past its
-  // configured bound. The module's other deadlines already use performance.now.
   const deadline = performance.now() + SCHEDULED_TASK_FALLBACK_TIMEOUT_MS;
   while (true) {
     const remaining = deadline - performance.now();
