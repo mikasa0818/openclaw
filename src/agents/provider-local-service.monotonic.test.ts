@@ -1,14 +1,12 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { getFreePort } from "../test-utils/ports.js";
-import {
-  createConfiguredProviderLocalServiceAcquirer,
-  stopManagedProviderLocalServices,
-} from "./provider-local-service.js";
+import { createConfiguredProviderLocalServiceAcquirer } from "./provider-local-service.js";
+import { createProviderLocalServiceTestFixture } from "./provider-local-service.test-support.js";
 
 describe("provider readiness wait clock domain", () => {
+  const fixture = createProviderLocalServiceTestFixture();
   afterEach(async () => {
     vi.restoreAllMocks();
-    await stopManagedProviderLocalServices();
+    await fixture.cleanup();
   });
 
   it("fails the readiness wait at its monotonic deadline when the wall clock rewinds", async () => {
@@ -17,7 +15,7 @@ describe("provider readiness wait clock domain", () => {
     // clock reading is rewound mid-wait, like an NTP correction or VM resume.
     const startedAt = Date.now();
     const wallClock = vi.spyOn(Date, "now");
-    const port = await getFreePort();
+    const port = await fixture.claimPort();
     const baseUrl = `http://127.0.0.1:${port}/v1`;
     const acquire = createConfiguredProviderLocalServiceAcquirer(() => ({
       models: {
