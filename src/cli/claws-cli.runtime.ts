@@ -29,11 +29,9 @@ import { readCurrentConfigForPolicyCheck } from "../config/io.js";
 import { listConfiguredMcpServers } from "../config/mcp-config.js";
 import { resolveConfigPath } from "../config/paths.js";
 import { redactSensitiveArgv } from "../config/redact-argv.js";
-import type { OpenClawConfig } from "../config/types.openclaw.js";
 import { redactSensitiveText } from "../logging/redact.js";
 import { defaultRuntime as runtime, writeRuntimeJson } from "../runtime.js";
 import { withOpenClawStateLease } from "../state/openclaw-state-lease.js";
-import { sleep } from "../utils/sleep.js";
 import {
   emitClawFailure,
   formatClawDiagnostics,
@@ -63,8 +61,7 @@ function addPlanSkillWarnings(plan: ClawAddPlan): ClawCliSkillWarning[] {
   });
 }
 
-const CLAW_AGENT_RELOAD_TIMEOUT_MS = 15_000;
-const CLAW_AGENT_RELOAD_POLL_MS = 100;
+import { waitUntilClawAgentAvailable } from "./claws-agent-wait.js";
 
 function logClawAddPlanSummary(plan: ClawAddPlan): void {
   runtime.log(`Agent: ${plan.agent.finalId}`);
@@ -418,35 +415,7 @@ export async function runClawsAddCommand(sourcePath: string, opts: ClawsAddOptio
                       expectedConfigRevision: options.expectedConfigRevision,
                     },
                   ),
-                waitUntilAgentAvailable: async (agentId) => {
-                  const deadline = Date.now() + CLAW_AGENT_RELOAD_TIMEOUT_MS;
-                  let lastError: unknown;
-                  while (Date.now() < deadline) {
-                    try {
-                      const response = await callGatewayFromCliWithTransport<{
-                        config?: OpenClawConfig;
-                        configRevisionHash?: unknown;
-                        appliedConfigHash?: unknown;
-                      }>("config.get", { timeout: "5000" }, {});
-                      // Matching tokens can describe a cached roster from before this agent was added.
-                      if (
-                        Object.hasOwn(response.config?.agents?.entries ?? {}, agentId) &&
-                        typeof response.configRevisionHash === "string" &&
-                        response.configRevisionHash === response.appliedConfigHash
-                      ) {
-                        return;
-                      }
-                      lastError = undefined;
-                    } catch (error) {
-                      lastError = error;
-                    }
-                    await sleep(CLAW_AGENT_RELOAD_POLL_MS);
-                  }
-                  const suffix = lastError instanceof Error ? `: ${lastError.message}` : "";
-                  throw new Error(
-                    `Gateway did not apply the Claw agent configuration in time${suffix}`,
-                  );
-                },
+                waitUntilAgentAvailable: (agentId) => waitUntilClawAgentAvailable(agentId),
               },
             });
           },
